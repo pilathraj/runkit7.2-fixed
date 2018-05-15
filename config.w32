@@ -1,0 +1,47 @@
+// $Id$
+// vim:ft=javascript
+
+ARG_ENABLE("runkit", "Enable runkit support", "no");
+ARG_ENABLE("runkit-modify", "Disable runtime manipulation", "yes");
+ARG_ENABLE("runkit-super", "Disable registration of user-defined autoglobals", "yes");
+ARG_ENABLE("runkit-spl_object_id", "Enable spl_object_id alias of runkit_object_id in php <= 7.1", "no");
+
+// The sandbox and the associated code was disabled for php 7.
+// ARG_ENABLE("runkit-sandbox", "Disable Runkit_Sandbox (Requires ZTS)", "yes");
+
+if (PHP_RUNKIT != "no") {
+    // TODO: Why isn't HAVE_CONFIG_H being set all of the time?
+    if (PHP_RUNKIT_MODIFY != "no") {
+        // Hackish way to enable these CFLAGS to include the necessary flags
+        ADD_FLAG('CFLAGS_RUNKIT', ' /D PHP_RUNKIT_FEATURE_MODIFY');
+        AC_DEFINE("PHP_RUNKIT_FEATURE_MODIFY", 1, "Runkit Manipulation");
+    }
+    if (PHP_RUNKIT_SUPER != "no") {
+        ADD_FLAG('CFLAGS_RUNKIT', ' /D PHP_RUNKIT_FEATURE_SUPER');
+        AC_DEFINE("PHP_RUNKIT_FEATURE_SUPER", 1, "Runkit Superglobals");
+    }
+    if (PHP_RUNKIT_SPL_OBJECT_ID != "no") {
+        ADD_FLAG('CFLAGS_RUNKIT', ' /D PHP_RUNKIT_SPL_OBJECT_ID');
+        AC_DEFINE("PHP_RUNKIT_SPL_OBJECT_ID", 1, "Runkit spl_object_id substitute");
+    }
+
+
+    // AC_DEFINE("PHP_RUNKIT_FEATURE_SANDBOX", PHP_RUNKIT_SANDBOX != "no", "Runkit Sandbox");
+
+    AC_DEFINE('HAVE_RUNKIT', 1);
+
+    PHP_INSTALL_HEADERS('ext/runkit', 'php_runkit.h php_runkit_hash.h php_runkit_sandbox.h php_runkit_zend_execute_API.h php_runkit_zval.h runkit.h');
+
+    EXTENSION("runkit", "runkit.c " +
+                        "runkit_common.c " +
+                        "runkit_functions.c " +
+                        "runkit_methods.c " +
+                        "runkit_import.c " +
+                        "runkit_classes.c " +
+                        "runkit_props.c " +
+                        "runkit_constants.c " +
+                        "runkit_object_id.c " +
+                        // "runkit_sandbox.c " +
+                        // "runkit_sandbox_parent.c " +
+                        "runkit_zend_execute_API.c ");
+}

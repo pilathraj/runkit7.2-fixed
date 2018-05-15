@@ -1,0 +1,70 @@
+language: php
+
+cache:
+  directories:
+    - $HOME/travis_cache
+
+dist: trusty
+
+addons:
+ apt:
+   sources:
+   - ubuntu-toolchain-r-test
+   packages:
+   - gcc-4.8
+
+env:
+  - CC=clang
+  - CC=gcc-4.8 CXX=g++-4.8
+  - CC=gcc-4.8 CXX=g++-4.8 VALGRIND=1
+  # Some bugs in runkit only show up without zts enabled. (aka NTS)
+  # Specifying PHP_VERSION is done to keep up to date versions in 7.0 and 7.1 (Does it work?)
+  # Add --enable-session so $_SESSION will exist in runkit superglobal test
+  - CC=gcc-4.8 CXX=g++-4.8 VALGRIND=1 PHP_NTS_USE=1 PHP_CONFIGURE_ARGS='--disable-all --disable-zts --enable-debug --enable-session'
+  # The VM implementation is different on 32-bit php. Test those as well.
+  - CC=gcc-4.8 CXX=g++-4.8 USE_32BIT=1 VALGRIND=1 PHP_NTS_USE=actually-zts PHP_CONFIGURE_ARGS='--disable-all --enable-maintainer-zts --enable-debug --enable-session'
+
+# Defined at https://github.com/php-build/php-build/tree/master/share/php-build/definitions
+php:
+  - master
+  - '7.2'
+  - '7.1'
+  - '7.0'
+
+matrix:
+  allow_failures:
+    - php: master
+  exclude:
+    - php: 7.0
+      env: CC=gcc-4.8 CXX=g++-4.8
+    - php: master
+      env: CC=gcc-4.8 CXX=g++-4.8
+    - php: master
+      env: CC=gcc-4.8 CXX=g++-4.8 VALGRIND=1 PHP_NTS_USE=1 PHP_CONFIGURE_ARGS='--disable-all --disable-zts --enable-debug --enable-session'
+    - php: master
+      env: CC=clang
+
+install:
+  - sudo apt-get install -qq $CC
+  - $CC --version
+  - if [ "x$USE_32BIT" != "x" ]; then sudo apt-get install -y g++-4.8-multilib libc6-dev-i386; export CC="$PWD/ci/gcc-32.sh"; export CXX="$PWD/ci/g++-32.sh"; $CC --version;  fi
+  # Test some builds with valgrind to check for memory leaks and invalid memory accesses
+  - if [ "$VALGRIND" -eq 1 ]; then sudo apt-get install -qq valgrind; export TEST_PHP_ARGS="-m"; valgrind --version; fi
+  # For NTS builds: Install NTS and set the php.ini to a different blank file.
+  - if [ "x$PHP_NTS_USE" != "x" ]; then export PHP_NTS_VERSION=$(./ci/get_global_php_version.sh); echo "Version is $PHP_NTS_VERSION"; ./ci/install_php_nts.sh || exit 1; export PATH="$(./ci/generate_php_install_dir.sh)/bin:$PATH"; export PHPRC=$PWD/ci/; else ./ci/wipe_travis_cache.sh; fi
+  - if [ "$VALGRIND" -eq 1 -a "x$USE_32BIT" != "x" ]; then sudo apt-get install -y libc6-dbg:i386; fi
+
+before_script:
+ - $CC --version && ci/print_php_int_max.php
+ - (export CC; phpize && ./configure --enable-runkit-spl_object-id && make)
+
+script:
+ - phpenv config-rm xdebug.ini || true
+ - ci/run_tests.sh
+
+branches:
+  only:
+    - master
+
+notifications:
+ email: false
